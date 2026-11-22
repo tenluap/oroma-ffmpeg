@@ -1,0 +1,100 @@
+# Builds Oroma's LGPL FFmpeg for every platform with build-ffmpeg.sh, plus the source offer. Run it by hand from the
+# Actions tab. With "publish" on, it creates the release named by RELEASE_TAG in release.env and attaches every zip;
+# the job summary lists the SHA-256 values Oroma pins (OromaFFmpegSha256_* in its Directory.Build.props).
+name: ffmpeg
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Create the GitHub release and attach the zips"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-arm64
+            os: macos-14
+          - rid: osx-x64
+            os: macos-13
+          - rid: linux-x64
+            os: ubuntu-22.04
+          - rid: win-x64
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ startsWith(matrix.os, 'windows') && 'msys2 {0}' || 'bash' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tools (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: brew install meson ninja nasm pkg-config
+
+      - name: Tools (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake meson ninja-build nasm pkg-config zip patchelf libva-dev zlib1g-dev
+
+      - name: Tools (Windows)
+        if: startsWith(matrix.os, 'windows')
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            make zip diffutils
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-meson mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-nasm mingw-w64-x86_64-pkgconf mingw-w64-x86_64-zlib
+
+      - name: Build
+        run: ./build-ffmpeg.sh ${{ matrix.rid }} artifacts | tee pin.txt
+
+      - name: Pin
+        run: cat pin.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-${{ matrix.rid }}
+          path: artifacts/*.zip
+
+  source-offer:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./build-ffmpeg.sh source-offer artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-source-offer
+          path: artifacts/*.zip
+
+  publish:
+    if: ${{ inputs.publish }}
+    needs: [build, source-offer]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: zips
+          merge-multiple: true
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          . ./release.env
+          gh release create "$RELEASE_TAG" zips/*.zip --title "Oroma FFmpeg $FFMPEG_VERSION (LGPL)" --notes-file README.md
+          {
+            echo "Pin these in Oroma's Directory.Build.props:"
+            for f in zips/ffmpeg-*-osx-*.zip zips/ffmpeg-*-linux-*.zip zips/ffmpeg-*-win-*.zip; do
+              rid="$(basename "$f" .zip)"; rid="${rid#ffmpeg-$FFMPEG_VERSION-}"
+              echo "- OromaFFmpegSha256_${rid//-/_}: $(sha256sum "$f" | cut -d' ' -f1)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
