@@ -216,7 +216,7 @@ case "$RID" in
     # libgcc and libstdc++ are GPL version 3 with the GCC Runtime Library Exception; ship both texts.
     if ls "$STAGE"/native/libgcc_s_*.dll "$STAGE"/native/libstdc++-*.dll >/dev/null 2>&1; then
       mkdir -p "$STAGE/ffmpeg/licenses/gcc-runtime"
-      curl -fsSL --retry 3 -o "$STAGE/ffmpeg/licenses/gcc-runtime/GCC-RUNTIME-LIBRARY-EXCEPTION-3.1.txt" https://www.gnu.org/licenses/gcc-exception-3.1.txt
+      curl -fsSL --retry 3 -o "$STAGE/ffmpeg/licenses/gcc-runtime/GCC-RUNTIME-LIBRARY-EXCEPTION-3.1.txt" https://raw.githubusercontent.com/spdx/license-list-data/main/text/GCC-exception-3.1.txt
       curl -fsSL --retry 3 -o "$STAGE/ffmpeg/licenses/gcc-runtime/GPL-3.0.txt" https://www.gnu.org/licenses/gpl-3.0.txt
     fi
     # Every bundled MinGW DLL has its license beside it.
