@@ -12,7 +12,7 @@ instructions are published, as the LGPL requires.
   - `native/`: the shared libraries (`libavcodec` and the rest) and the `ffmpeg` and `ffprobe` commands.
   - `ffmpeg/`: FFmpeg's `LICENSE.md` and `COPYING.LGPLv2.1`, the exact configure line in `CONFIGURE.txt`, and the
     license of each library built in (libvpx, Opus, libwebp, dav1d). The Windows zip also carries the MinGW
-    runtime DLLs the build links (libgcc under the GCC Runtime Library Exception, winpthreads, zlib), and the Linux
+    runtime DLLs the build links (libgcc and libstdc++ under the GCC Runtime Library Exception, winpthreads, zlib), and the Linux
     zip carries libva (MIT); their licenses are in `ffmpeg/licenses`.
 - `ffmpeg-<version>-source-offer.zip`: the unmodified FFmpeg source tarball, the source tarball of each library built in,
   this build script, `SOURCES.md` (every source with its SHA-256) and `PATCHES.md`. No patches are applied.

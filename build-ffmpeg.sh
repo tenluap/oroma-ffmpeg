@@ -210,8 +210,24 @@ case "$RID" in
     cp "$INSTALL"/bin/*.dll "$INSTALL/bin/ffmpeg.exe" "$INSTALL/bin/ffprobe.exe" "$STAGE/native/"
     # The MinGW runtime DLLs the build links (libgcc, winpthreads, zlib) ship beside it, with their licenses.
     for dll in $(ldd "$STAGE"/native/*.dll "$STAGE"/native/*.exe | awk '/\/mingw64\// { print $3 }' | sort -u); do cp "$dll" "$STAGE/native/"; done
-    for pkg in gcc-libs winpthreads zlib; do
+    for pkg in gcc-libs gcc winpthreads zlib; do
       if [ -d "/mingw64/share/licenses/$pkg" ]; then cp -r "/mingw64/share/licenses/$pkg" "$STAGE/ffmpeg/licenses/mingw-$pkg"; fi
+    done
+    # libgcc and libstdc++ are GPL version 3 with the GCC Runtime Library Exception; ship both texts.
+    if ls "$STAGE"/native/libgcc_s_*.dll "$STAGE"/native/libstdc++-*.dll >/dev/null 2>&1; then
+      mkdir -p "$STAGE/ffmpeg/licenses/gcc-runtime"
+      curl -fsSL --retry 3 -o "$STAGE/ffmpeg/licenses/gcc-runtime/GCC-RUNTIME-LIBRARY-EXCEPTION-3.1.txt" https://www.gnu.org/licenses/gcc-exception-3.1.txt
+      curl -fsSL --retry 3 -o "$STAGE/ffmpeg/licenses/gcc-runtime/GPL-3.0.txt" https://www.gnu.org/licenses/gpl-3.0.txt
+    fi
+    # Every bundled MinGW DLL has its license beside it.
+    for dll in "$STAGE"/native/lib*.dll; do
+      case "$(basename "$dll")" in
+        libgcc_s_*|libstdc++-*) need=gcc-runtime ;;
+        libwinpthread-*) need=mingw-winpthreads ;;
+        libz-*) need=mingw-zlib ;;
+        *) log "No license known for $(basename "$dll")"; exit 1 ;;
+      esac
+      [ -e "$STAGE/ffmpeg/licenses/$need" ] || { log "Missing license $need for $(basename "$dll")"; exit 1; }
     done
     MISSING="$(ldd "$STAGE"/native/*.dll "$STAGE"/native/*.exe | grep -E 'not found|/mingw64/' | grep -v "$STAGE" || true)"
     FFMPEG="$STAGE/native/ffmpeg.exe"
