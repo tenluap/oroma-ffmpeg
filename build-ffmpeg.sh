@@ -122,7 +122,7 @@ case "$RID" in
     EXTRA=(--enable-vaapi --enable-pthreads --enable-zlib)
     ;;
   win-x64)
-    EXTRA=(--enable-mediafoundation --enable-w32threads --enable-zlib)
+    EXTRA=(--enable-mediafoundation --enable-d3d11va --enable-w32threads --enable-zlib)   # FFmpeg 9 h264_mf needs D3D11VA
     ;;
   *)
     log "Unknown RID $RID"
