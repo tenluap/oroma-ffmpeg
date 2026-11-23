@@ -197,15 +197,28 @@ case "$RID" in
   linux-x64)
     for lib in "${LIBS[@]}"; do cp -L "$(shortest "$INSTALL/lib/lib$lib".so.*)" "$STAGE/native/"; done
     cp "$INSTALL/bin/ffmpeg" "$INSTALL/bin/ffprobe" "$STAGE/native/"
+    # libavutil needs libva for VAAPI; many machines have no libva, so it ships beside the libraries (MIT). The VAAPI
+    # drivers stay the system's: without one, H.264 encoding is unavailable and Oroma says so.
+    for va in $(ldd "$STAGE/native/libavutil.so".* | awk '/libva/ { print $3 }'); do cp -L "$va" "$STAGE/native/"; done
+    [ -f /usr/share/doc/libva2/copyright ] && cp /usr/share/doc/libva2/copyright "$STAGE/ffmpeg/licenses/libva-COPYRIGHT.txt"
     # Each library and command finds the others beside it.
     for f in "$STAGE"/native/*; do patchelf --set-rpath "\$ORIGIN" "$f"; done
+    MISSING="$(ldd "$STAGE"/native/* 2>/dev/null | grep 'not found' || true)"
     FFMPEG="$STAGE/native/ffmpeg"
     ;;
   win-x64)
     cp "$INSTALL"/bin/*.dll "$INSTALL/bin/ffmpeg.exe" "$INSTALL/bin/ffprobe.exe" "$STAGE/native/"
+    # The MinGW runtime DLLs the build links (libgcc, winpthreads, zlib) ship beside it, with their licenses.
+    for dll in $(ldd "$STAGE"/native/*.dll "$STAGE"/native/*.exe | awk '/\/mingw64\// { print $3 }' | sort -u); do cp "$dll" "$STAGE/native/"; done
+    for pkg in gcc-libs winpthreads zlib; do
+      if [ -d "/mingw64/share/licenses/$pkg" ]; then cp -r "/mingw64/share/licenses/$pkg" "$STAGE/ffmpeg/licenses/mingw-$pkg"; fi
+    done
+    MISSING="$(ldd "$STAGE"/native/*.dll "$STAGE"/native/*.exe | grep -E 'not found|/mingw64/' | grep -v "$STAGE" || true)"
     FFMPEG="$STAGE/native/ffmpeg.exe"
     ;;
 esac
+# Every library the build needs is in native/ or is part of the operating system.
+[ -z "${MISSING:-}" ] || { log "Unbundled dependencies:"; printf '%s\n' "$MISSING" >&2; exit 1; }
 
 BUILDCONF="$("$FFMPEG" -hide_banner -buildconf)"
 ENCODERS="$("$FFMPEG" -hide_banner -encoders)"
